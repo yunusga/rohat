@@ -42,7 +42,7 @@ program
 program
 	.command('cb <blockName>')
 	.description('Create new block')
-	.option('-t [njk,styl,js]', 'Files extensions for new block')
+	.option('-t, --techs [njk,styl,js]', 'Files extensions for new block')
 	.action((blockName, options) => {
 		require('../commands/cb')(blockName, options.techs);
 	});
