@@ -1,7 +1,19 @@
-console.log('rohat is warming up...');
+const log = require('fancy-log');
 
-const { join } = require('node:path');
-const { existsSync, rmSync, mkdirSync } = require('node:fs');
+log('rohat is warming up...');
+
+const {
+	join,
+	basename,
+} = require('node:path');
+
+const { performance } = require('node:perf_hooks');
+
+const {
+	existsSync,
+	rmSync,
+	mkdirSync,
+} = require('node:fs');
 
 const {
 	src,
@@ -12,13 +24,30 @@ const {
 	parallel,
 } = require('gulp');
 
-const log = require('fancy-log');
+const {
+    bold,
+	green,
+	yellow,
+	bgRed,
+} = require('picocolors');
+
+const tap = require('../modules/gulp-tap');
 const plumber = require('gulp-plumber');
+const chokidar = require('chokidar');
 const server = require('browser-sync').create('rohat server');
 const settings = require(join(process.cwd(), 'rohat.config'));
 
+const Lagman = require('../modules/lagman');
+const Database = require('../modules/database');
+const TCI = require('../modules/tci');
+
 module.exports = (options) => {
 	const { paths } = settings;
+
+	const LAGMAN = new Lagman(paths);
+	const DB = new Database(settings, log);
+
+	TCI.run({}, log);
 
 	process.env.BROWSERSLIST_CONFIG = join(process.cwd(), '.browserslistrc');
 
@@ -29,7 +58,7 @@ module.exports = (options) => {
 		log('clean');
 
 		if (existsSync(paths.build)) {
-			rmSync(paths.build, { recursive: true });
+			rmSync(paths.build, { recursive: true, });
 			mkdirSync(paths.build);
 		}
 
@@ -51,7 +80,7 @@ module.exports = (options) => {
 				directory: true,
 			},
 			open: false,
-			watch: false,
+			watch: true, // need for update serve files on change
 			watchOptions: {
 				ignoreInitial: false,
 			},
@@ -81,10 +110,13 @@ module.exports = (options) => {
 		const inlineSvg = require('postcss-inline-svg');
 		const easingGradients = require('postcss-easing-gradients');
 
-		src(join(paths.styles, '**', '*.styl'))
+		src(join(paths.styles, '*.styl'))
+			.pipe(tap((file) => {
+				log(`styles:${yellow(basename(file.path))}`);
+			}))
 			.pipe(plumber({
 				errorHandler: (error) => {
-					log.error(`Ошибка: проверьте стили ${error.plugin}`);
+					log.error(`Error: check styles ${error.plugin}`);
 					log.error(error.toString());
 
 					server.sockets.emit('error:message', error);
@@ -105,7 +137,7 @@ module.exports = (options) => {
 			.pipe(sourcemaps.write())
 			.pipe(dest(join(paths.build, paths.assets, 'css')))
 			.on('end', () => {
-				log('styles');
+				log('styles:done');
 			})
 			.pipe(server.stream());
 
@@ -117,13 +149,28 @@ module.exports = (options) => {
 	 */
 	const nunjucks = require('../modules/nunjucks')(paths.blocks);
 	const gulpNunjucks = require('../modules/nunjucks/gulp');
+	const gulpPostHTML = require('../modules/posthtml/gulp');
+  	const posthtmlBem = require('../modules/posthtml/bem');
+
+	let htmlTiming = '';
+
+	console.log(DB.getStore());
 
 	task('html', (done) => {
-		src(join(paths.pages, '**', '*.njk'))
-			.pipe(gulpNunjucks(nunjucks, {}))
+		
+		src(LAGMAN.store.src)
+			.pipe(tap((file) => {
+				htmlTiming = performance.now();
+
+				log(`html:${yellow(basename(file.path))}`);
+			}))
+			.pipe(gulpNunjucks(nunjucks, DB))
+			.pipe(gulpPostHTML([
+				posthtmlBem(),
+			]))
 			.pipe(dest(paths.build))
 			.on('end', () => {
-				log('html');
+				log(`html:${green(`${(performance.now() - htmlTiming).toFixed(0)}ms`)}`);
 				server.reload();
 			});
 
@@ -131,15 +178,48 @@ module.exports = (options) => {
 	});
 
 	task('watch', (done) => {
+		const watchOpts = {
+			ignoreInitial: true,
+			usePolling: false,
+			cwd: process.cwd(),
+		};
+
 		watch([
 			join(paths.styles, '**', '*.styl'),
 			join(paths.blocks, '**', '*.styl'),
-		], {}, parallel('styles'));
+		], watchOpts, parallel('styles'));
 
-		watch([
-			join(paths.pages, '**', '*.njk'),
-			join(paths.blocks, '**', '*.njk'),
-		], {}, parallel('html'));
+		/* Pages */
+		const watchPages = chokidar.watch(join(paths.pages, '**', '*.njk'), watchOpts);
+
+		watchPages
+			.on('add', (pagePath) => {
+				watchPages.add(pagePath);
+				LAGMAN.create(pagePath, 'pages');
+			})
+			.on('change', (pagePath) => {
+				LAGMAN.store.src = join(process.cwd(), pagePath);
+				parallel('html')();
+			})
+			.on('unlink', (pagePath) => {
+				// LAGMAN.delete(LAGMAN.getName(pagePath), 'pages');
+				watchPages.unwatch(pagePath);
+			});
+		
+		const watchBLocks = chokidar.watch(join(paths.blocks, '**', '*.njk'), watchOpts);
+
+		watchBLocks
+			.on('add', (blockPath) => {
+				watchBLocks.add(blockPath);
+				LAGMAN.create(blockPath, 'pages');
+			})
+			.on('change', (blockPath) => {
+				parallel('html')();
+			})
+			.on('unlink', (blockPath) => {
+				// LAGMAN.delete(LAGMAN.getName(blockPath), 'pages');
+				watchPages.unwatch(blockPath);
+			});
 
 		done();
 	});

@@ -1,4 +1,8 @@
-const { mkdirSync, existsSync, writeFileSync } = require('fs');
+const {
+	mkdirSync,
+	existsSync,
+	writeFileSync,
+} = require('fs');
 
 module.exports = (name, techs) => {
 	const blockPath = `rohat/blocks/${name}`;

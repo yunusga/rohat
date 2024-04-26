@@ -7,7 +7,7 @@ const frontmatter = require('../frontmatter');
 
 const PLUGIN_NAME = 'gulp-nunjucks';
 
-function gulpNunjucks(nunjucks, database) {
+function gulpNunjucks(nunjucks, db) {
     return transform((file, enc, cb) => {
         if (file.isNull()) {
             return cb(null, file);
@@ -33,7 +33,9 @@ function gulpNunjucks(nunjucks, database) {
             return cb(new PluginError('Front matter (YAML) parse error', err));
         }
 
-        const context = { ...database, ...data, ...fm.attributes };
+        const localeData = db.getStore(fm.attributes.locale);
+
+        const context = { ...localeData, ...data, ...fm.attributes };
 
         nunjucks.renderString(content, context, (err, res) => {
             if (err) {
