@@ -147,14 +147,12 @@ module.exports = (options) => {
 	/**
 	 * HTML
 	 */
-	const nunjucks = require('../modules/nunjucks')(paths.blocks);
+	const nunjucks = require('../modules/nunjucks')(paths);
 	const gulpNunjucks = require('../modules/nunjucks/gulp');
 	const gulpPostHTML = require('../modules/posthtml/gulp');
   	const posthtmlBem = require('../modules/posthtml/bem');
 
 	let htmlTiming = '';
-
-	console.log(DB.getStore());
 
 	task('html', (done) => {
 		
@@ -177,12 +175,47 @@ module.exports = (options) => {
 		done();
 	});
 
+	task('iconizer', (done) => {
+		const svgSprite = require('gulp-svg-sprite');
+    	const replace = require('gulp-replace');
+
+		src(join(paths.iconizer, '*.svg'))
+			.pipe(svgSprite({
+				sprite: 'sprite.icons.svg',
+				mode: {
+					symbol: { // symbol mode to build the SVG
+						example: true, // Build sample page
+					},
+				},
+				svg: {
+					xmlDeclaration: false, // strip out the XML attribute
+					doctypeDeclaration: false, // don't include the !DOCTYPE declaration
+				}
+			}))
+			.pipe(replace(/\n/g, ''))
+			.pipe(replace(/<defs[\s\S]*?\/defs><path[\s\S]*?\s+?d=/g, '<path d='))
+			.pipe(replace(/<style[\s\S]*?\/style><path[\s\S]*?\s+?d=/g, '<path d='))
+			.pipe(replace(/\sfill[\s\S]*?(['"])[\s\S]*?\1/g, ''))
+			.pipe(replace(/<title>[\s\S]*?<\/title>/g, ''))
+			.pipe(replace(/<svg /, (match) => `${match} class="svg-prite" `))
+			.pipe(dest(join(paths.build, paths.assets)))
+			.on('end', () => {
+				log('iconizer:done');
+			});
+		
+		done();
+	});
+
 	task('watch', (done) => {
 		const watchOpts = {
 			ignoreInitial: true,
 			usePolling: false,
 			cwd: process.cwd(),
 		};
+
+		watch([
+			join(join(paths.iconizer, '*.svg')),
+		], watchOpts, parallel('iconizer'));
 
 		watch([
 			join(paths.styles, '**', '*.styl'),
@@ -229,12 +262,15 @@ module.exports = (options) => {
 	 */
 	task(
 		'dev',
-		parallel(
+		series(
 			'clean',
-			'html',
-			'styles'
+			'iconizer',
+			parallel(
+				'html',
+				'styles'
+			)
 		)
-	)
+	);
 
 	if (options.build) {
 		series('dev')();

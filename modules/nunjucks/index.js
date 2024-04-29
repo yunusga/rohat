@@ -14,5 +14,7 @@ module.exports = (blocksPath) => {
         autoescape: false,
     });
 
+    env.addGlobal('inlineSvgSprite', require('../nunjucks/inlineSvgSprite'));
+
     return env;
 };
