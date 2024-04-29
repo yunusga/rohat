@@ -79,6 +79,7 @@ module.exports = (options) => {
 				},
 				directory: true,
 			},
+			port: settings.server.port,
 			open: false,
 			watch: true, // need for update serve files on change
 			watchOptions: {
