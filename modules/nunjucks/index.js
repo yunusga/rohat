@@ -1,5 +1,11 @@
-const { join } = require('node:path');
-const { readdirSync } = require('node:fs');
+const {
+    join,
+} = require('node:path');
+
+const {
+    readdirSync,
+    readFileSync,
+} = require('node:fs');
 
 module.exports = (paths) => {
     const nunjucks = require('nunjucks');
@@ -7,7 +13,7 @@ module.exports = (paths) => {
 
     const templateLoader = new nunjucks.FileSystemLoader(blocksPaths, {
         watch: true,
-        noCache: false,
+        noCache: true,
     });
 
     const env = new nunjucks.Environment(templateLoader, {
@@ -15,6 +21,7 @@ module.exports = (paths) => {
     });
 
     env.addGlobal('inlineSvgSprite', require('../nunjucks/inlineSvgSprite'));
+    env.addGlobal('inline', (filePath) => readFileSync(`rohat/assets/${filePath}`));
 
     return env;
 };

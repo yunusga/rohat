@@ -139,10 +139,10 @@ module.exports = (options) => {
 			.pipe(dest(join(paths.build, paths.assets, 'css')))
 			.on('end', () => {
 				log('styles:done');
+
+				done();
 			})
 			.pipe(server.stream());
-
-		done();
 	});
 
 	/**
@@ -152,18 +152,40 @@ module.exports = (options) => {
 	const gulpNunjucks = require('../modules/nunjucks/gulp');
 	const gulpPostHTML = require('../modules/posthtml/gulp');
   	const posthtmlBem = require('../modules/posthtml/bem');
+	const pipeErrorStop = require('../modules/pipe-error-stop');
 
 	let htmlTiming = '';
+	let templateName = '';
 
 	task('html', (done) => {
 		
 		src(LAGMAN.store.src)
+			.pipe(plumber({
+				errorHandler: (error) => {
+					server.sockets.emit('error:message', error);
+					hasError = true;
+					console.error(`[nunjucks] ошибка: проверьте шаблоны ${error.plugin}`);
+					console.error(error);
+				},
+			}))
 			.pipe(tap((file) => {
 				htmlTiming = performance.now();
 
-				log(`html:${yellow(basename(file.path))}`);
+				templateName = basename(file.path);
+
+				log(`html:${yellow(templateName)}`);
 			}))
 			.pipe(gulpNunjucks(nunjucks, DB))
+			.pipe(pipeErrorStop({
+				errorCallback: (error) => {
+					error.message = error.message.replace(/(unknown path)/, templateName);
+		
+					console.error(`\n${error.name}: ${error.message}\n`);
+		
+					server.sockets.emit('error:message', error);
+				},
+				successCallback: () => {},
+			}))
 			.pipe(gulpPostHTML([
 				posthtmlBem(),
 			]))
@@ -171,9 +193,9 @@ module.exports = (options) => {
 			.on('end', () => {
 				log(`html:${green(`${(performance.now() - htmlTiming).toFixed(0)}ms`)}`);
 				server.reload();
+				
+				done();
 			});
-
-		done();
 	});
 
 	task('iconizer', (done) => {
@@ -201,10 +223,9 @@ module.exports = (options) => {
 			.pipe(replace(/<svg /, (match) => `${match} class="svg-prite" `))
 			.pipe(dest(join(paths.build, paths.assets)))
 			.on('end', () => {
+				done();
 				log('iconizer:done');
 			});
-		
-		done();
 	});
 
 	task('watch', (done) => {
