@@ -47,6 +47,13 @@ program
 		require('../commands/cb')(blockName, options.techs);
 	});
 
+program
+	.command('release')
+	.description('Create release build')
+	.action(() => {
+		require('../commands/release')();
+	});
+
 // Parse CLI arguments
 program.parse(process.argv);
 
