@@ -28,6 +28,14 @@ class Database {
 
         return this.store.locales[locale];
     }
+
+    setCurrentPage(currentPage) {
+        this.store.currentPage = currentPage;
+    }
+
+    getCurrentPage() {
+        return this.store.currentPage.replace('.njk', '.html');
+    }
 }
 
 module.exports = Database;

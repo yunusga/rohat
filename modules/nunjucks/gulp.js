@@ -34,6 +34,8 @@ function gulpNunjucks(nunjucks, db) {
         }
 
         const localeData = db.getStore(fm.attributes.locale);
+        
+        localeData.currentPage = db.getCurrentPage();
 
         const context = { ...localeData, ...data, ...fm.attributes };
 

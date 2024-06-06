@@ -16,6 +16,13 @@ const {
 } = require('node:fs');
 
 const {
+    bold,
+	green,
+	yellow,
+	bgRed,
+} = require('picocolors');
+
+const {
 	src,
 	dest,
 	task,
@@ -24,15 +31,9 @@ const {
 	parallel,
 } = require('gulp');
 
-const {
-    bold,
-	green,
-	yellow,
-	bgRed,
-} = require('picocolors');
-
 const tap = require('../modules/gulp-tap');
 const plumber = require('gulp-plumber');
+const sourcemaps = require('gulp-sourcemaps');
 const chokidar = require('chokidar');
 const server = require('browser-sync').create('rohat server');
 const settings = require(join(process.cwd(), 'rohat.config'));
@@ -97,13 +98,42 @@ module.exports = (options) => {
 	});
 
 	/**
+	 * Scripts
+	 */
+	task('scripts', (done) => {
+		const babel = require('gulp-babel');
+		const include = require('gulp-include');
+	
+		src(join(paths.scripts, '*.js'))
+			.pipe(plumber({
+				errorHandler: (error) => {
+					log.error(`Error: check scripts ${error.plugin}`);
+					log.error(error.message.toString());
+				},
+			}))
+			.pipe(include({
+				extensions: 'js',
+				hardFail: false,
+			})).on('error', console.log)
+			.pipe(babel({
+				presets: ['@babel/preset-env'].map(require.resolve),
+				plugins: ['@babel/plugin-transform-object-assign'].map(require.resolve),
+			}))
+			.pipe(dest(join(paths.build, paths.assets, 'js')))
+			.on('end', () => {
+				log('scripts:done');
+
+				done();
+			});
+	});
+
+	/**
 	 * Styles
 	 */
 	task('styles', (done) => {
 		const autoprefixer = require('autoprefixer');
 		const postcss = require('gulp-postcss');
 		const stylus = require('../modules/gulp-stylus');
-		const sourcemaps = require('gulp-sourcemaps');
 		
 		const combineAndSortMQ = require('postcss-sort-media-queries');
 		const flexBugsFixes = require('postcss-flexbugs-fixes');
@@ -173,6 +203,8 @@ module.exports = (options) => {
 
 				templateName = basename(file.path);
 
+				DB.setCurrentPage(templateName);
+
 				log(`html:${yellow(templateName)}`);
 			}))
 			.pipe(gulpNunjucks(nunjucks, DB))
@@ -240,6 +272,11 @@ module.exports = (options) => {
 		], watchOpts, parallel('iconizer'));
 
 		watch([
+			join(paths.scripts, '*.js'),
+			join(paths.blocks, '**', '*.js'),
+		], watchOpts, parallel('scripts'));
+
+		watch([
 			join(paths.styles, '**', '*.styl'),
 			join(paths.blocks, '**', '*.styl'),
 		], watchOpts, parallel('styles'));
@@ -289,6 +326,7 @@ module.exports = (options) => {
 			'iconizer',
 			parallel(
 				'html',
+				'scripts',
 				'styles'
 			)
 		)
