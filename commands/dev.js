@@ -94,6 +94,17 @@ module.exports = (options) => {
 			logPrefix: 'rohat dev server',
 		});
 
+		if (options.proxy) {
+			const proxy = require('browser-sync').create('Proxy Server');
+	
+			proxy.init(settings.serverProxy);
+	
+			proxy.watch(join('.', paths.build, paths.assets, 'css', 'app.css')).on('change', () => {
+				// Since 2.6.0 - wildcards to reload ALL css files
+				proxy.reload('/css/app.css');
+			});
+		}
+
 		done();
 	});
 

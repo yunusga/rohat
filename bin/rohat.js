@@ -34,6 +34,7 @@ program
 	.command('dev')
 	.description('Start development server')
 	.option('-b, --build', 'Build project without server, prepare for release build', false)
+	.option('--proxy', 'Build project with proxy server', false)
 	.action((options) => {
 		require('../commands/dev')(options);
 	});
